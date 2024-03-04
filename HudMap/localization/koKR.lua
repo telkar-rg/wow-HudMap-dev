@@ -46,7 +46,6 @@ L["Enable Party & Raid Dots"] = "파티 & 공격대 아이콘 활성화"
 L["Enable Party Totems"] = "파티 토템 활성화"
 L["Enable Totem Ranges"] = "토템 거리 활성화"
 L["Encounters"] = "보스모드"
--- L["Faded Circle"] = ""
 L["Festergut"] = "구린속"
 L["Fire Arrow"] = "강력한 불꽃"
 L["Fire Nova"] = "불꽃 회오리"
@@ -157,3 +156,11 @@ L["XT-002 Deconstructor"] = "XT-002 해체자"
 L["Zones"] = "지역"
 L["Zoom In"] = "확대"
 L["Zoom Out"] = "축소"
+
+
+-- ./modules/zones/dungeon_violet_hold.lua
+L["The Violet Hold"] = "보랏빛 요새"
+L["UR_YOGG_P3_TRIGGER"] = "^죽음의 진정한 얼굴을 보아라"
+L["Brain Portals"] = true
+L["Yogg-Saron"] = "요그사론"
+L["Rimefang"] = true

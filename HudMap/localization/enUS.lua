@@ -243,7 +243,7 @@ L["Ruby Sanctum"] = true
 L["Northrend Beasts"] = true
 L["Charge Warning"] = true
 L["Lord Jaraxxus"] = true
-L["Tournament"] = true
+L["Tournament"] = "Argent Tournament"
 
 -- ./modules/zones/ulduar.lua
 L["XT-002 Deconstructor"] = true
@@ -252,6 +252,21 @@ L["Freya"] = true
 L["General Vexaz"] = true
 L["Yogg-Saron"] = true
 L["Ulduar"] = true
+L["UR_YOGG_P2_TRIGGER"] = "^I am the lucid dream"
+L["UR_YOGG_P3_TRIGGER"] = "^Look upon the true face"
+L["Brain Portals"] = true
+L["Rimefang"] = true
+
+-- ./modules/zones/dungeon_violet_hold.lua
+L["The Violet Hold"] = true
+
+
+-- ./modules/zones/warsong.lua
+-- no localization
+
+-- .modules/demonicCircle.lua
+L["Demonic Circle: Summon"] = true
+L["Demonic Circle"] = true
 
 -- ./modules/zones/warsong.lua
 -- no localization

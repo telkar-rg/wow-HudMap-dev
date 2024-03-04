@@ -6,6 +6,8 @@ local parent = HudMap
 local L = LibStub("AceLocale-3.0"):GetLocale("HudMap")
 local mod = HudMap:NewModule(modName, "AceEvent-3.0")
 
+local modNameLocalized = L["Compass"]
+
 local options = {
 	type = "group",
 	name = L["Compass"],
@@ -54,7 +56,7 @@ local NUM_MARKS = 8
 function mod:OnInitialize()
 	self.defaultState = "disabled"
 	self.db = parent.db:RegisterNamespace(modName, defaults)
-	parent:RegisterModuleOptions(modName, options, modName)
+	parent:RegisterModuleOptions(modName, options, modNameLocalized)
 
 	local frame = CreateFrame("Frame", nil, parent.canvas)
 	frame:SetAllPoints(parent.canvas)

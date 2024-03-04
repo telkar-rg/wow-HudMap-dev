@@ -6,6 +6,8 @@ local L = LibStub("AceLocale-3.0"):GetLocale("HudMap")
 local mod = HudMap:NewModule(modName, "AceEvent-3.0")
 local db
 
+local modNameLocalized = L["Range Markers"]
+
 local function deepcopy(tbl)
    local new = {}
    for key,value in pairs(tbl) do
@@ -68,7 +70,7 @@ local activeMarkers = {}
 function mod:OnInitialize()
 	self.db = parent.db:RegisterNamespace(modName, defaults)
 	db = self.db.profile
-	parent:RegisterModuleOptions(modName, options, modName)
+	parent:RegisterModuleOptions(modName, options, modNameLocalized)
 	for k, v in pairs(db.markers) do
 		self:AddMarker(k)
 	end
@@ -112,7 +114,6 @@ local rangeKeys = {
 	reticle = L["Reticle"],
 	fuzzyring = L["Ring 2"],
 	fatring = L["Ring 3"],
-	fadecircle = L["Faded Circle"],
 }
 
 function mod:AddMarker(key)

@@ -5,6 +5,8 @@ local mod = HudMap:NewModule(modName, "AceEvent-3.0")
 local trackingSpells = {[2383] = true, [2580] = true, [43308] = true}
 local playerGUID = UnitGUID("player")
 
+local modNameLocalized = L["Tracking"]
+
 local db
 local options = {
 	type = "group",
@@ -101,7 +103,7 @@ local defaults = {
 function mod:OnInitialize()
 	self.db = parent.db:RegisterNamespace(modName, defaults)
 	db = self.db.profile
-	parent:RegisterModuleOptions(modName, options, modName)
+	parent:RegisterModuleOptions(modName, options, modNameLocalized)
 end
 
 function mod:OnEnable()
@@ -139,7 +141,7 @@ function mod:ToggleGatherMode(flag)
 	end
 end
 
-function mod:COMBAT_LOG_EVENT_UNFILTERED(ev, timestamp, event, hideCaster, srcGUID, srcName, srcFlags, destGUID, destName, destFlags, spellID, ...)
+function mod:COMBAT_LOG_EVENT_UNFILTERED(ev, timestamp, event, srcGUID, srcName, srcFlags, destGUID, destName, destFlags, spellID, ...)
 	if srcGUID == playerGUID and trackingSpells[spellID] then
 		if event ==  "SPELL_AURA_REMOVED" then
 			self:ToggleGatherMode(false)

@@ -1,7 +1,10 @@
 local modName = "Party & Raid"
+local modName = "Party & Raid"
 local parent = HudMap
 local L = LibStub("AceLocale-3.0"):GetLocale("HudMap")
 local mod = HudMap:NewModule(modName, "AceEvent-3.0")
+
+local modNameLocalized = L["Party & Raid"]
 
 --[[ Default upvals 
      This has a slight performance benefit, but upvalling these also makes it easier to spot leaked globals. ]]--
@@ -21,6 +24,9 @@ local frame = CreateFrame("Frame")
 local partyMembers = {}
 local highlight
 local targetArrow
+
+local roles = {}
+local playerName
 
 local free = parent.free
 
@@ -63,7 +69,18 @@ local options = {
 							highlight:SetSize((v+5) .. "px")
 						end
 					end
-				},	
+				},
+				showFeasts = {
+					type = "toggle",
+					name = "Show Feasts",
+					order = 130,
+					get = function()
+						return db.showFeasts
+					end,
+					set = function(info, v)
+						db.showFeasts = v
+					end
+				},
 			}
 		},
 		target = {
@@ -228,8 +245,9 @@ local defaults = {
 	profile = {
 		showSpellTargets = false,
 		arrowToTarget = false,
-		iconSize = 24,
-		targetLabel = false,
+		showFeasts = true,
+		iconSize = 16,
+		targetLabel = true,
 		highlightTarget = true,
 		highlightMouseover = false,
 		targetArrowColor = {
@@ -264,48 +282,68 @@ end})
 
 local SN = parent.SN
 
+local dinnerTableTextures = {
+	[57426] = "feast_fish", 	--"Fischmahl",
+	[57301] = "feast_misc", 	--"Großes Festmahl",
+	[66476] = "feast_misc", 	--"Reichhaltiges Festmahl",
+	[43987] = "food_mage",
+	[58659] = "food_mage",
+}
+
 local spellMap = {
 	-- Paladin
-	[20473] = "healer",		-- Holy Shock
-	[53563] = "healer",		-- Beacon of Light
-	[53595] = "tank",			-- Hammer of the Righteous
-	[35395] = "dps",			-- Crusader Strike
+	[48825] = "healer",		-- Holy Shock
+	[53562] = "healer",		-- Beacon of Light
+	[54153] = "healer",		-- judgement of the pure
+	[48952] = "tank",			-- Holy Shield
+	[48827] = "tank",			-- avengers shield
+	[53595] = "tank",			-- hammer of the righteous
+	[35395] = "dps",		-- Crusader Strike
+	[53385] = "dps",		-- Divine Storm
 	
 	-- Priest
-	[53077] = "healer",		-- Penance
-	[34861] = "healer",		-- Circle of Healing
+	[53007] = "healer",		-- Penance
+	[48089] = "healer",		-- Circle of Healing
 	[15473] = "dps",			-- Shadowform
+	[15286] = "dps",			-- vampiric embrace
 	[65490] = "dps",			-- Vampiric Touch
+	[48156] = "dps",			-- mind flay
 	
 	-- Druid
-	[48438] = "healer",		-- Wild Growth
+	[53251] = "healer",		-- Wild Growth
 	[33891] = "healer",		-- Tree of Life
-	[774]   = "healer",		-- Rejuv
+	-- [48441] = "healer",		-- Rejuv
 	[6807]  = "tank",			-- Maul
-	[5487]  = "tank",			-- Bear Form
-	[779]   = "tank",			-- Swipe
-	[5221]  = "dps",			-- Shred
-	[5570]  = "dps",			-- Insect Swarm
-	[24858] = "dps",			-- Moonkin Form
-	[768]   = "dps", 			-- Cat Form
-	[2912]  = "dps",			-- Starfire
+	[9634]  = "tank",			-- Bear Form
+	[48562] = "tank",			-- Swipe
+	[768]   = "dps", 		-- Cat Form
+	[48572] = "dps",		-- Shred
+	[48468] = "dps",		-- Insect Swarm
+	[24858] = "dps",		-- Moonkin Form
+	[53201] = "dps",		-- Starfall
 	
 	-- Death Knight
-	[48263] = "tank",			-- Blood presence
-	[48266] = "dps",			-- Frost presence
+	-- [56815] = "tank",			-- rune strike
+	[48263] = "tank",			-- Frost presence
+	[48266] = "dps",			-- Blood presence
 	[48265] = "dps",			-- Unholy presence
 	
 	-- Warrior
-	[71]    = "tank",			-- Defensive Stance
-	[6572]  = "tank",			-- Revenge
-	[12294] = "dps",			-- Mortal Strike
-	[23881] = "dps",			-- Bloodthirst
+	[12809] = "tank",			-- concussion blow
+	[57823] = "tank",			-- Revenge
+	[47498] = "tank",			-- devastate
+	[46968] = "tank",			-- shockwave
+	[47486] = "dps",			-- Mortal Strike
+	[23885] = "dps",			-- Bloodthirst
 	
 	-- Shaman
-	[61295] = "healer",   -- Riptide
-	[974]   = "healer",   -- Earth Shield
+	[61301] = "healer",   -- Riptide
+	[49284] = "healer",   -- Earth Shield
+	[16237] = "healer",   -- Ancestral Fortitude
+	[57722] = "dps",   		-- Totem of Wrath
+	[60103] = "dps",   		-- flame strike
 	[17364] = "dps",   		-- Stormstrike
-	[51490] = "dps"       -- Thunderstorm
+	[59159] = "dps"			-- Tunderstorm
 }
 
 local healthBarPool = {}
@@ -418,36 +456,36 @@ end
 
 local bestGuess = {
 	DEATHKNIGHT = function(unit)
-		if UnitAura(unit, SN[48263]) then return "tank" end
-		if UnitAura(unit, SN[48266]) then return "dps" end
-		if UnitAura(unit, SN[48265]) then return "dps" end
+		if UnitAura(unit, SN[48263]) then return "tank" end -- Frost presence
+		return "dps"
 	end,
 	DRUID = function(unit)
-		if UnitAura(unit, SN[5487])  then return "tank" end
-		if UnitAura(unit, SN[768])   then return "dps" end
-		if UnitAura(unit, SN[24858]) then return "dps" end
-		if UnitAura(unit, SN[33891]) then return "healer" end
+		if UnitAura(unit, SN[9634])  then return "tank" end		-- bear
+		if UnitAura(unit, SN[24858]) then return "dps" end	-- eule
+		if UnitAura(unit, SN[768]) then return "dps" end	-- katze
+		if UnitAura(unit, SN[33891]) then return "healer" end	-- tree
 		return "dps"
 	end,
 	MAGE = "dps",
 	HUNTER = "dps",	
 	PALADIN = function(unit)
-		if UnitAura(unit, SN[20165]) then return "healer" end
-		if UnitAura(unit, SN[25780]) then return "tank" end
+		if UnitLevel(unit) == 80 and UnitManaMax(unit) > 20000 then return "healer" end
+		if UnitAura(unit, SN[25780]) then return "tank" end	-- righteous fury
 		return "dps"
 	end,
 	PRIEST = function(unit)
-		if UnitAura(unit, SN[15473]) then return "dps" end
+		if UnitAura(unit, SN[15473]) then return "dps" end	-- shadowform
+		if UnitAura(unit, SN[15286]) then return "dps" end	-- vampiric embrace
 		return "healer"
 	end,
 	ROGUE = "dps",
 	SHAMAN = function(unit)
-		if UnitAura(unit, SN[52127]) then return "healer" end
+		if UnitAura(unit, SN[57960]) then return "healer" end	-- water shield
 		return "dps"
 	end,
 	WARLOCK = "dps",
 	WARRIOR = function(unit)
-		if UnitLevel(unit) == 85 and UnitHealthMax(unit) > 160000 then return "tank" end
+		if UnitLevel(unit) == 80 and UnitHealthMax(unit) > 40000 then return "tank" end
 		return "dps"
 	end
 }
@@ -473,16 +511,19 @@ function mod:UpdatePartyUnit(unit)
 		if cl then
 			local _, uc = UnitClass(unit)
 			local r, g , b, a = cl.r, cl.g, cl.b, 1
-			r = r + ((1-r) / 5)
-			g = g + ((1-g) / 5)
-			b = b + ((1-b) / 5)
-			local guess = bestGuess[uc]
-			if type(guess) == "function" then guess = guess(unit) end
-			local c = parent:PlaceRangeMarkerOnPartyMember(guess or "party", n, db.iconSize .. "px", nil, r, g, b, a, "BLEND"):Identify(self, n)
-			c.healthBar = acquireHealthBar(c)
+			
+			
+			if not roles[n] then
+				local guess = bestGuess[uc]
+				if type(guess) == "function" then guess = guess(unit) end
+				if guess then roles[n] = guess end
+				-- ChatFrame3:AddMessage("-- HudMap: "..n.." is "..guess.." (BEST GUESS)" ) -- DEBUG
+			end
+			local c = parent:PlaceRangeMarkerOnPartyMember(roles[n] or "party", n, db.iconSize .. "px", nil, r, g, b, a, "BLEND"):Identify(self, n)
+			-- c.healthBar = acquireHealthBar(c)
 			c.RegisterCallback(self, "Free", "FreeDot")
 			partyMembers[n] = c
-			mod:UNIT_HEALTH(nil, unit)
+			-- mod:UNIT_HEALTH(nil, unit)
 		end
 	end
 end
@@ -519,7 +560,7 @@ end
 function mod:OnInitialize()
 	self.db = parent.db:RegisterNamespace(modName, defaults)
 	db = self.db.profile
-	parent:RegisterModuleOptions(modName, options, modName)
+	parent:RegisterModuleOptions(modName, options, modNameLocalized)
 end
 
 function mod:OnEnable()
@@ -527,7 +568,7 @@ function mod:OnEnable()
 	frame:SetScript("OnUpdate", update)
 	self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
 	self:RegisterEvent("PLAYER_TARGET_CHANGED")
-	self:RegisterEvent("UNIT_HEALTH")
+	-- self:RegisterEvent("UNIT_HEALTH")
 	self:RegisterEvent("PLAYER_TARGET_CHANGED")
 	self:RegisterEvent("RAID_ROSTER_UPDATE", "UpdateParty")
 	self:RegisterEvent("PARTY_MEMBERS_CHANGED", "UpdateParty")
@@ -542,18 +583,38 @@ function mod:OnDisable()
 	end
 end
 
-local roles = {}
-local playerName
 local function validUnit(unit)
 	return unit and (partyMembers[unit] or UnitIsUnit(unit, "player")) and UnitIsMappable(unit, true)
 end
 
-function mod:COMBAT_LOG_EVENT_UNFILTERED(ev, timestamp, event, hideCaster, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags, spellID, spellName, ...)
+
+
+function mod:COMBAT_LOG_EVENT_UNFILTERED(ev, timestamp, event, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags, spellID, spellName, ...)
 	local isPlayer = bit.band(destFlags, COMBATLOG_OBJECT_TYPE_PLAYER) == COMBATLOG_OBJECT_TYPE_PLAYER
 	if isPlayer then
-		if spellNameMap[spellName] and partyMembers[sourceName] and roles[sourceName] ~= spellNameMap[spellName] then
-			partyMembers[sourceName]:SetTexture(spellNameMap[spellName], "BLEND")
-			roles[sourceName] = spellNameMap[spellName]
+		
+		
+		-- -- DEBUG
+		-- if event == "SPELL_HEAL" and spellID==48821 and sourceName=="Sareiha" then
+			-- local x, y = HudMap:GetUnitPosition(sourceName, true)
+			-- if x==0 and y==0 then return end
+			
+			-- local duration = 10
+			-- local tex = dinnerTableTextures[57426]
+			
+			-- HudMap:PlaceRangeMarker(tex, x, y, "20px", duration, 1,1,1,0.5):Appear()
+			-- print("try to place mark")
+			-- return
+		-- end
+		
+		-- if spellNameMap[spellName] and partyMembers[sourceName] and roles[sourceName] ~= spellNameMap[spellName] then
+			-- partyMembers[sourceName]:SetTexture(spellNameMap[spellName], "BLEND")
+			-- roles[sourceName] = spellNameMap[spellName]
+			
+		if spellMap[spellID] and partyMembers[sourceName] and roles[sourceName] ~= spellMap[spellID] then
+			partyMembers[sourceName]:SetTexture(spellMap[spellID], "BLEND")
+			roles[sourceName] = spellMap[spellID]
+			-- ChatFrame3:AddMessage("-- HudMap: "..sourceName.." is "..roles[sourceName].." ("..tostring(spellID)..", "..SN[spellID]..")" ) -- DEBUG
 		end
 		
 		if event == "SPELL_CAST_START" or event == "SPELL_CAST_SUCCESS" or event == "SPELL_HEAL" then
@@ -565,7 +626,30 @@ function mod:COMBAT_LOG_EVENT_UNFILTERED(ev, timestamp, event, hideCaster, sourc
 				end
 			end
 		end
+		
 	end
+	
+	isPlayer = bit.band(sourceFlags, COMBATLOG_OBJECT_TYPE_PLAYER) == COMBATLOG_OBJECT_TYPE_PLAYER
+	if event == "SPELL_CREATE" then
+		-- print(event, spellID)
+		-- print(db.showFeasts , sourceName , (partyMembers[sourceName] or UnitIsUnit("player",sourceName)) , spellID , dinnerTableTextures[spellID])
+		
+		if db.showFeasts and sourceName and (partyMembers[sourceName] or UnitIsUnit("player",sourceName)) and spellID and dinnerTableTextures[spellID] then
+			
+			local x, y = HudMap:GetUnitPosition(sourceName, true)
+			if x==0 and y==0 then return end
+			
+			local duration = 60*3
+			local tex = dinnerTableTextures[spellID]
+			
+			HudMap:PlaceRangeMarker(tex, x, y, "20px", duration, 1,1,1,0.5):Appear()
+			HudMap:PlaceRangeMarkerOnPartyMember("targeting", destName, 3, duration/10, 1, 0.5, 0, 0.8):Appear():Rotate(360, 3)
+			-- print("--placed icon")
+			
+			-- register(HudMap:PlaceRangeMarker("timer", x, y, 6, 10, r, g, b, a):Rotate(360, 10):Appear():RegisterForAlerts())
+		end
+	end
+	
 end
 
 do	

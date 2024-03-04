@@ -2,6 +2,7 @@ local AceLocale = LibStub:GetLibrary("AceLocale-3.0")
 local L = AceLocale:NewLocale("HudMap", "esMX")
 if not L then return end 
 
+L["%s Color"] = "%s Color"
 L["5-man Instance"] = "Instancia de 5 Jugadores"
 L["Adaptive Zoom"] = "Zoom Adaptable"
 L["Add Marker"] = "Agregar Marca"
@@ -46,7 +47,6 @@ L["Enable Party & Raid Dots"] = "Habilitar puntos de grupo y banda"
 L["Enable Party Totems"] = "Habilitar Tótems de Grupo"
 L["Enable Totem Ranges"] = "Habilitar alcance de Tótems"
 L["Encounters"] = "Encuentros"
--- L["Faded Circle"] = ""
 L["Festergut"] = "Panzachancro"
 L["Fire Arrow"] = "Flecha de Fuego"
 L["Fire Nova"] = "Nova de Fuego"
@@ -144,7 +144,7 @@ L["Thick Outline"] = "Contorno Delgado"
 L["Toggle Binding"] = "Activar Atajo"
 L["Toggle HudMap"] = "Activar HudMap"
 L["Totems"] = "Tótems"
-L["Tournament"] = "Torneo"
+L["Tournament"] = "Torneo Argenta"
 L["Tracking"] = "Rastreando"
 L["Ulduar"] = "Ulduar"
 L["Use Adaptive Zoom"] = "Usar Zoom Adaptable"
@@ -157,3 +157,11 @@ L["XT-002 Deconstructor"] = "Desarmador XA-002"
 L["Zones"] = "Zonas"
 L["Zoom In"] = "Acercar"
 L["Zoom Out"] = "Alejar"
+
+
+-- ./modules/zones/dungeon_violet_hold.lua
+L["The Violet Hold"] = "El Bastión Violeta"
+L["UR_YOGG_P3_TRIGGER"] = "^Look upon the true face" -- THIS IS MISSING!!!
+L["Brain Portals"] = "Portal cerebral"
+L["Yogg-Saron"] = "Yogg-Saron"
+L["Rimefang"] = true

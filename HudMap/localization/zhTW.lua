@@ -46,7 +46,6 @@ L["Enable Party & Raid Dots"] = "啟用隊伍/團隊標記點"
 L["Enable Party Totems"] = "啟用隊伍圖騰"
 L["Enable Totem Ranges"] = "啟用圖騰範圍"
 L["Encounters"] = "戰鬥"
-L["Faded Circle"] = "Faded Circle" -- Needs review
 L["Festergut"] = "膿腸"
 L["Fire Arrow"] = "火球箭頭"
 L["Fire Nova"] = "火焰新星"
@@ -144,7 +143,7 @@ L["Thick Outline"] = "厚輪廓"
 L["Toggle Binding"] = "打開按鍵設定"
 L["Toggle HudMap"] = "打開/關閉 HudMap"
 L["Totems"] = "圖騰"
-L["Tournament"] = "陣營勇士"
+L["Tournament"] = "銀白聯賽"
 L["Tracking"] = "追踪"
 L["Ulduar"] = "奧杜亞"
 L["Use Adaptive Zoom"] = "使用自適應縮放"
@@ -157,3 +156,11 @@ L["XT-002 Deconstructor"] = "XT-002拆解者"
 L["Zones"] = "區域"
 L["Zoom In"] = "拉近"
 L["Zoom Out"] = "拉遠"
+
+
+-- ./modules/zones/dungeon_violet_hold.lua
+L["The Violet Hold"] = "紫羅蘭堡"
+L["UR_YOGG_P3_TRIGGER"] = "看看死亡的真實面貌，瞭解你們的末日降臨了!"
+L["Brain Portals"] = true
+L["Yogg-Saron"] = "尤格薩倫"
+L["Rimefang"] = true

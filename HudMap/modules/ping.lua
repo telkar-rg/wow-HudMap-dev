@@ -6,6 +6,8 @@ local parent = HudMap
 local L = LibStub("AceLocale-3.0"):GetLocale("HudMap")
 local mod = HudMap:NewModule(modName, "AceEvent-3.0")
 
+local modNameLocalized = L["Ping"]
+
 local function free(e)
 	if e then e:Free() end
 	return nil
@@ -70,7 +72,7 @@ local defaults = {
 -- One-time setup code is done here.
 function mod:OnInitialize()
 	self.db = parent.db:RegisterNamespace(modName, defaults)
-	parent:RegisterModuleOptions(modName, options, modName)	
+	parent:RegisterModuleOptions(modName, options, modNameLocalized)	
 end
 
 function mod:OnEnable()
@@ -122,8 +124,8 @@ function mod:MINIMAP_PING(event, sender, dx, dy)
 	if self.ping and self.ping:Owned(self, "ping") then self.ping:Free() end
 	local t1, t2 = "targeting", "SPELLS\\GENERICGLOW2B1.BLP"
 	
-	self.ping = parent:PlaceRangeMarker(t1, x, y, "25px", 5.5, 1, 1, 1, 1.0, "ADD"):Pulse(1.5, 1):Appear():Identify(self, "ping"):AlwaysShow():SetClipOffset("50px")
-	self.glow = parent:PlaceRangeMarker(t2, x, y, "50px", 5.5, 1, 1, 0, 0.6, "ADD"):Pulse(0.8, 1):Appear():Identify(self, "glow"):AlwaysShow()
+	self.ping = parent:PlaceRangeMarker(t1, x, y, "25px", 5.5, 1, 1, 1, 1.0, "ADD"):Pulse(1.5, 1):Rotate( 360, 4):Appear():Identify(self, "ping"):AlwaysShow():SetClipOffset("50px")
+	self.glow = parent:PlaceRangeMarker(t2, x, y, "50px", 5.5, 1, 1, 0, 0.6, "ADD"):Pulse(0.8, 1):Rotate(-360, 4):Appear():Identify(self, "glow"):AlwaysShow()
 	self.ping.RegisterCallback(self, "Free", "FreePing")	
 
 	if self.db.profile.label then

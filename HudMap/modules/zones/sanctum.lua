@@ -138,6 +138,6 @@ local halion = {
 		orb.stickX, orb.stickY = self:orbPosition(offset)		
 	end
 }
-Halion = halion
+-- Halion = halion
 
 encounters:RegisterModule(L["Ruby Sanctum"], halion)

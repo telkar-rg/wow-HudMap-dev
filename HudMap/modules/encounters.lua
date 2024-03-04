@@ -3,6 +3,10 @@ local parent = HudMap
 local L = LibStub("AceLocale-3.0"):GetLocale("HudMap")
 local mod = HudMap:NewModule(modName, "AceEvent-3.0")
 local db
+local SN = parent.SN
+local SN_Link = parent.SN_Link
+
+local modNameLocalized = L["Encounters"]
 
 --[[ Default upvals 
      This has a slight performance benefit, but upvalling these also makes it easier to spot leaked globals. ]]--
@@ -65,7 +69,8 @@ local activeModule, activatedAt = nil, nil
 mod.group = HudMap.group
 
 mod.GuidToMobID = setmetatable({}, {__index = function(t, k)
-	local id = (k and tonumber(k:sub(7, 10), 16)) or 0
+	k = k or 0
+	local id = (k and tonumber(k:sub(9, 12), 16)) or 0
 	rawset(t, k, id)
 	return id	
 end})
@@ -73,11 +78,10 @@ end})
 function mod:OnInitialize()
 	self.db = parent.db:RegisterNamespace(modName, defaults)
 	db = self.db.profile
-	parent:RegisterModuleOptions(modName, options, modName)
+	parent:RegisterModuleOptions(modName, options, modNameLocalized)
 end
 
 function mod:OnEnable()
-	self.db:RegisterDefaults(defaults)
 	db = self.db.profile
 	self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")	
 	self:RegisterEvent("CHAT_MSG_RAID_BOSS_EMOTE", "Yell")
@@ -85,13 +89,24 @@ function mod:OnEnable()
 	self:RegisterEvent("CHAT_MSG_MONSTER_EMOTE", "Yell")
 	self:RegisterEvent("CHAT_MSG_MONSTER_SAY", "Yell")	
 	self:RegisterEvent("ZONE_CHANGED", "FreeEncounterMarkers")
+	
+	-- self:RegisterEvent("UNIT_THREAT_SITUATION_UPDATE", "AdditionalEvents")
 end
 
 function mod:OnDisable()
 	self:FreeEncounterMarkers()
 end
 
-function mod:COMBAT_LOG_EVENT_UNFILTERED(_, timestamp, event, hideCaster, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags, spellID, ...)
+function mod:AdditionalEvents(eventName, ...)
+	if not activeModule then return end
+	
+	local ev = activeModule[eventName]
+	if ev then
+		activeModule[eventName](activeModule, ...)
+	end
+end
+
+function mod:COMBAT_LOG_EVENT_UNFILTERED(_, timestamp, event, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags, spellID, ...)
 	local srcMob = mod.GuidToMobID[sourceGUID]
 	local dstMob = mod.GuidToMobID[destGUID]
 	
@@ -124,6 +139,10 @@ function mod:COMBAT_LOG_EVENT_UNFILTERED(_, timestamp, event, hideCaster, source
 	if ev then
 		activeModule[event](activeModule, spellID, sourceName, destName, sourceGUID, destGUID, ...)
 	end
+	-- ev = activeModule["CLEU"]
+	-- if ev then
+		-- activeModule["CLEU"](activeModule, timestamp, event, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags, spellID, ...)
+	-- end
 end
 
 function mod:Yell(event, ...)
@@ -143,11 +162,12 @@ do
 			return t
 		end
 	end
-
+	
 	local nukeKeys, merge = {}, {}
 	function mod:RegisterModule(zone, ...)	
 		for i = 1, select("#", ...) do
 			local module = select(i, ...)
+			
 			if module.name and module.options then
 				options.args.zones.args[zone:gsub(" ", "")] = options.args.zones.args[zone:gsub(" ", "")] or {
 					type = "group",
@@ -164,14 +184,23 @@ do
 				for k, v in pairs(module.options) do
 					if type(v) == "string" then
 						tinsert(nukeKeys, k)
+						
+						local spellID,spellName,spellLink
+						_,_,spellID = v:find( "%$spell:(%d+)" ) -- extract the spell id, if its a spell format
+						if spellID then
+							spellName = SN[spellID]			-- get spell name
+							spellLink = SN_Link[spellID]	-- get spell hyperlink
+						end
+						
 						merge[k .. "Enabled"] = {
 							type = "toggle",
-							name = L["Enable"] .. " " .. v,
-							order = serial + 1
+							name = L["Enable"] .. " " .. (spellLink or v),
+							order = serial + 1,
+							desc = spellLink,
 						}
 						merge[k .. "Color"] = {
 							type = "color",
-							name = v .. " " .. L["Color"],
+							name = (spellName or v) .. " " .. L["Color"],
 							hasAlpha = true,
 							order = serial + 2							
 						}
@@ -194,7 +223,7 @@ do
 
 				t.args[module.name:gsub(" ", "")] = {
 					type = "group",
-					name = module.name,
+					name = string.format("%2d",i).." "..module.name,
 					args = module.options
 				}
 			end

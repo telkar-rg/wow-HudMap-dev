@@ -53,16 +53,122 @@ local deathwhisper = {
 	endEncounterIDs = 36855,
 	options = {
 		mindControl = SN[71289],
+		vengefulShade = SN[71426],
 	},
 	defaults = {
-		mindControlColor = {r = 1, g = 0.35, b = 0, a = 0.4}
+		mindControlColor = {r = 1, g = 0.35, b = 0, a = 0.4},
+		vengefulShadeColor = {r = 0.75, g = 0, b = 1, a = 0.4},
 	},	
+	LadyAggro = {
+		lastSummon = 0,
+		lastSpawn = 0,
+		nextScan = 0,
+		lastscan = 0,
+		spellID = 71426,
+		circleRadius = "5yd",
+		tracked = {},
+		shadeID = string.format("%04X", 38222),
+	},
+	
+	func_scanDelayed = function(self, delay)
+		self.LadyAggro.func_scan = self.LadyAggro.func_scan or function() self:func_scanEnter() end
+		encounters:Delay(self.LadyAggro.func_scan, delay)
+	end,
+	
+	func_scanEnter = function(self)
+		self.LadyAggro.tdiff = GetTime() - self.LadyAggro.lastSpawn
+		if self.LadyAggro.tdiff > 3 then
+			-- no more updates after 3 sec since last spawn
+			-- self.func_scanStop() 
+			return
+		else
+			local raidUnitId, duration, raiderName
+			-- interate all raid members
+			for raidIdx=1, GetNumRaidMembers() do
+				raidUnitId = "raid"..tostring(raidIdx)
+				if UnitExists(raidUnitId) then -- make sure they exist
+				
+					if UnitThreatSituation(raidUnitId)==3 then
+						-- raid member is target of mob
+						raiderName = UnitName(raidUnitId)
+						if UnitExists(raidUnitId.."target") and UnitCanAttack(raidUnitId, raidUnitId.."target") and UnitThreatSituation(raidUnitId, raidUnitId.."target")==3  then
+							-- raid member is target of mob, that it looks at -> do nothing
+						else
+							duration = 8 - self.LadyAggro.tdiff
+							
+							local r, g, b, a = self:Option("vengefulShadeColor")
+							-- mod:PlaceRangeMarkerOnPartyMember(texture, person, radius, duration, r, g, b, a, blend)
+							self.LadyAggro.tracked[raiderName] = register(HudMap:PlaceRangeMarkerOnPartyMember("timer", raiderName, self.LadyAggro.circleRadius, duration, r, g, b, a):Rotate(360, 5):Appear():RegisterForAlerts():SetLabel(raiderName))
+						end
+					else
+						-- player is not aggro for any mob, free them if possible
+						if self.LadyAggro.tracked[raiderName] then
+							self.LadyAggro.tracked[raiderName] = free(self.LadyAggro.tracked[raiderName])
+						end
+					end
+					
+				end
+			end
+		end
+		-- self.func_scanNext(0.1)
+		-- encounters:Delay(function() self:func_scanEnter() end, 0.1)
+		self:func_scanDelayed(0.1)
+	end,
+	
+	func_playerFail = function(self, raiderName)
+		if self.LadyAggro.tracked[raiderName] then
+			free(self.LadyAggro.tracked[raiderName])
+			self.LadyAggro.tracked[raiderName] = nil
+		end
+		-- lets shame em
+		register(HudMap:PlaceRangeMarkerOnPartyMember("timer", raiderName, "5yd", 1, 1, 0, 0, 0.7):Rotate(360, 1):Appear():RegisterForAlerts():SetLabel(raiderName))
+	end,
+	
+	-- 12/8 11:52:39.560  SPELL_SUMMON,0xF130008FF700001C,"Lady Todeswisper",0x10a48,0xF13000954E00017D,"Rachsüchtiger Schatten",0xa48,71426,"Geist beschwören",0x1
+	SPELL_SUMMON = function(self, spellID, sourceName, destName, sourceGUID, destGUID)
+		if spellID == 71426 and self:Option("vengefulShadeEnabled") then 
+			if GetTime() - self.LadyAggro.lastSummon > 5 then
+				self.LadyAggro.lastSummon = GetTime()
+				-- self.func_scanStart(0.6)
+				-- encounters:Delay(function() self:func_scanEnter() end, 0.5)
+				self:func_scanDelayed(0.5)
+				
+				-- cleanup if necessary
+				for raiderName,_ in pairs(self.LadyAggro.tracked) do
+					free(self.LadyAggro.tracked[raiderName])
+					self.LadyAggro.tracked[raiderName] = nil
+				end
+				
+				-- set circle size
+				self.LadyAggro.circleRadius = "10yd"
+				if encounters:IsHeroic() then
+					self.LadyAggro.circleRadius = "20yd"
+				end
+			end
+			self.LadyAggro.lastSpawn = GetTime()
+		end
+	end,
+	
+	-- (arg2 == "SWING_DAMAGE" or (arg2 =="SWING_MISSED" and (arg9 == "ABSORB" or arg9 =="BLOCK"))) 
+	SWING_DAMAGE = function(self, spellID, sourceName, destName, sourceGUID, destGUID, ...) --
+		if self:Option("vengefulShadeEnabled") and strsub(sourceGUID,9,12) == self.LadyAggro.shadeID then
+			-- player fucked up
+			self:func_playerFail(destName)
+		end
+	end,
+	SWING_MISSED = function(self, spellID, sourceName, destName, sourceGUID, destGUID, ...) --
+		if self:Option("vengefulShadeEnabled") and strsub(sourceGUID,9,12) == self.LadyAggro.shadeID and (spellID == "ABSORB" or spellID =="BLOCK") then -- due to encounters.lua, "arg9" is hardcoded as "spellID"
+			-- player fucked up
+			self:func_playerFail(destName)
+		end
+	end,
+	
 	SPELL_AURA_APPLIED = function(self, spellID, sourceName, destName, sourceGUID, destGUID)
 		if spellID == 71289 and self:Option("mindControlEnabled") then
 			local r, g, b, a = self:Option("mindControlColor")
 			register(HudMap:PlaceRangeMarkerOnPartyMember("timer", destName, 8, 12, r, g, b, a):Rotate(360, 12):Appear():RegisterForAlerts():SetLabel(destName))
 		end
-	end	
+	end,
 }
 
 local festergut = {
@@ -327,8 +433,8 @@ local bloodqueen = {
 
 local sindragosa = {
 	name = L["Sindragosa"],
-	startEncounterIDs = 36853,
-	endEncounterIDs = 36853,
+	startEncounterIDs = {36853, 37533},
+	endEncounterIDs = {36853, 37533},
 	options = {
 		tombs = SN[70157],
 		cold = SN[70123],
@@ -336,13 +442,18 @@ local sindragosa = {
 		sindraPositions = {
 			type = "toggle",
 			name = L["Automatic Ice Tomb Positions"]			
-		}
+		},
+		rimefangIcyblast = {
+			type = "toggle",
+			name = "Trash: " .. SN[71376],			
+		},
 	},
 	defaults = {
 		tombsColor = {r = 0.2, g = 0.9, b = 1, a = 0.7},
 		coldColor = {r = 0.3, g = 0.5, b = 1, a = 0.7},
 		instabilityColor = {r = 0.7, g = 0.3, b = 1, a = 0.7},
-		sindraPositions = false
+		sindraPositions = false,
+		rimefangIcyblastColor = {r = 0, g = 0.7, b = 1, a = 0.7},
 	},
 	positions = {
 		[25] = {
@@ -379,6 +490,27 @@ local sindragosa = {
 		end
 		self.lastTombTime = GetTime()
 	end,
+	
+	
+	rimefangIcyblastTargetFunc = function(self)
+		local rimefangIcyblastTarget = encounters:GetMobTarget(37533)
+		if rimefangIcyblastTarget then
+			local x, y = HudMap:GetUnitPosition(rimefangIcyblastTarget, true)
+			local r, g, b, a = self:Option("rimefangIcyblastColor")
+			register(HudMap:PlaceRangeMarker("timer", x, y, 7, 30, r, g, b, a):Appear():Rotate(360, 4):RegisterForAlerts())
+			-- ChatFrame3:AddMessage('-- HudMap: RIMEFANG targets "'..rimefangIcyblastTarget..'"') -- DEBUG
+		end
+	end,
+	SPELL_CAST_START = function(self, spellID, sourceName, destName, sourceGUID, destGUID)
+		-- Rimefang Blast
+		if spellID == 71376 and self:Option("rimefangIcyblastEnabled") then
+			self.invoker = self.invoker or function() self:rimefangIcyblastTargetFunc() end
+			encounters:Delay(self.invoker, 0.1)
+		end
+	end,
+	
+	
+	
 	SPELL_AURA_APPLIED = function(self, spellID, sourceName, destName, sourceGUID, destGUID)
 		-- Frost beacon
 		if spellID == 70126 and self:Option("tombsEnabled") then
@@ -469,7 +601,7 @@ do
 					encounters:Delay(self.stinvoker, 0.04)
 					encounters:Delay(self.stinvoker, 0.05)
 				end
-				encounters:Delay(self.stinvoke2r, 1)
+				encounters:Delay(self.stinvoker2, 1)
 			end
 		end,
 		SPELL_CAST_SUCCESS = function(self, spellID, sourceName, destName, sourceGUID, destGUID)

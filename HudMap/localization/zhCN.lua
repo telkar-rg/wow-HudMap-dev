@@ -46,7 +46,6 @@ L["Enable Party & Raid Dots"] = "启用队伍/团队标记点"
 L["Enable Party Totems"] = "启用队伍图腾"
 L["Enable Totem Ranges"] = "启用图腾范围"
 L["Encounters"] = "战斗"
-L["Faded Circle"] = "渐隐圆环"
 L["Festergut"] = "烂肠"
 L["Fire Arrow"] = "火球箭头"
 L["Fire Nova"] = "火焰新星"
@@ -144,7 +143,7 @@ L["Thick Outline"] = "厚描边"
 L["Toggle Binding"] = "打开按键设定"
 L["Toggle HudMap"] = "打开/关闭HudMap"
 L["Totems"] = "图腾"
-L["Tournament"] = "比武场"
+L["Tournament"] = "银色锦标赛"
 L["Tracking"] = "追踪"
 L["Ulduar"] = "奥杜尔"
 L["Use Adaptive Zoom"] = "使用自适应缩放"
@@ -157,3 +156,11 @@ L["XT-002 Deconstructor"] = "XT002拆解者"
 L["Zones"] = "区域"
 L["Zoom In"] = "拉近"
 L["Zoom Out"] = "拉远"
+
+
+-- ./modules/zones/dungeon_violet_hold.lua
+L["The Violet Hold"] = "紫罗兰监狱"
+L["UR_YOGG_P3_TRIGGER"] = "凝视死亡的真正面孔吧，你们的末日就要来了！"
+L["Brain Portals"] = true
+L["Yogg-Saron"] = "尤格薩倫"
+L["Rimefang"] = true

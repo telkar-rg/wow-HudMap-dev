@@ -3,6 +3,8 @@ local parent = HudMap
 local L = LibStub("AceLocale-3.0"):GetLocale("HudMap")
 local mod = HudMap:NewModule(modName, "AceEvent-3.0")
 
+local modNameLocalized = L["Player Icon"]
+
 --[[ Default upvals 
      This has a slight performance benefit, but upvalling these also makes it easier to spot leaked globals. ]]--
 local _G = _G.getfenv(0)
@@ -169,7 +171,7 @@ local playerDot
 function mod:OnInitialize()
 	self.db = parent.db:RegisterNamespace(modName, defaults)
 	db = self.db.profile
-	parent:RegisterModuleOptions(modName, options, modName)
+	parent:RegisterModuleOptions(modName, options, modNameLocalized)
 	
 	playerDot = HudMap.canvas:CreateTexture()
 	playerDot:SetPoint("CENTER")

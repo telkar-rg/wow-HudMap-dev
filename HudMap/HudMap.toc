@@ -1,17 +1,13 @@
-## Interface: 40100
-## Title: HudMap
+## Interface: 30300
+## Title: HudMap (Telkar-RG 2.00)
 ## Notes: Heads-up minimap display
-## Author: Antiarc
+## Author: Antiarc, Telkar-RG
 ## OptionalDeps: Ace3, TomTom, QuestHelper, GatherMate
 ## SavedVariables: HudMapDB, HudMapDebug
-## X-Curse-Packaged-Version: v1.2-5-gf5f7fbf
+## X-Curse-Packaged-Version: v1.1.5
 ## X-Curse-Project-Name: HudMap
 ## X-Curse-Project-ID: hudmap
 ## X-Curse-Repository-ID: wow/hudmap/mainline
-## X-Curse-Packaged-Version: v1.4b
-## X-Curse-Project-Name: HudMap
-## X-Curse-Project-ID: hudmap
-## X-Curse-Repository-ID: wow/hudmap/mop
 
 embeds.xml
 
@@ -42,6 +38,7 @@ modules\aoeHealing.lua
 modules\totems.lua
 modules\ping.lua
 modules\compass.lua
+# modules\tracking.lua
 
 ## Encounters modules
 modules\zones\icecrown.lua

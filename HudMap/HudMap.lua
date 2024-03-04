@@ -32,10 +32,9 @@ local getmetatable, setmetatable, pairs, ipairs, select, unpack = _G.getmetatabl
 local CallbackHandler = LibStub:GetLibrary("CallbackHandler-1.0")
 local AceConfig = LibStub("AceConfig-3.0")
 local AceConfigDialog = LibStub("AceConfigDialog-3.0")
+local AceGUI = LibStub("AceGUI-3.0")
 local updateFrame = CreateFrame("Frame")
-local Astrolabe = DongleStub("Astrolabe-1.0")
-local onUpdate, minimapSize, indoors, Point, Edge
-local zoneScale = {1500, 1000}
+local onUpdate, zoneScalingData, zoneOverrides, minimapSize, indoors, Point, Edge
 local followedUnits = {}
 local paused
 local callbacks = CallbackHandler:New(mod)
@@ -46,13 +45,32 @@ local Icon = LibStub("LibDBIcon-1.0")
 local LDB_Plugin
 local configFrame
 
+mod.DEBUG_TABLE = {}
+
 local SN = setmetatable({}, {__index = function(t, k)
 	local n = GetSpellInfo(k)
 	rawset(t, k, n)
 	return n
 end})
-
 mod.SN = SN
+
+local SN_Link = setmetatable({}, {__index = function(t, k)
+	-- local n = GetSpellInfo(k)
+	-- rawset(t, k, n)
+	-- return n
+	
+	-- local spellId = tonumber(id)
+	-- local spellName = GetSpellInfo(spellId) or "unknown"
+	-- return ("|cff71d5ff|Hspell:%d|h%s|h|r"):format(spellId, spellName)
+	
+	local spellId = tonumber(k)
+	local spellName = GetSpellInfo(spellId) or "unknown"
+	n = ("|cff71d5ff|Hspell:%d|h%s|h|r"):format(spellId, spellName)
+	
+	rawset(t, k, n)
+	return n
+end})
+mod.SN_Link = SN_Link
 
 local GetNumRaidMembers, GetNumPartyMembers = _G.GetNumRaidMembers, _G.GetNumPartyMembers
 local GetCVar, GetTime, UIParent = _G.GetCVar, _G.GetTime, _G.UIParent
@@ -83,7 +101,6 @@ local textureLookup = {
 	tank      = [[Interface\AddOns\HudMap\assets\roles]],
 	dps	      = [[Interface\AddOns\HudMap\assets\roles]],
 	healer    = [[Interface\AddOns\HudMap\assets\roles]],
-	fadecircle	= [[Interface\AddOns\HudMap\assets\fadecircle]],
 	ring			= [[SPELLS\CIRCLE]],
 	rune1			= [[SPELLS\AURARUNE256.BLP]],
 	rune2			= [[SPELLS\AURARUNE9.BLP]],
@@ -99,6 +116,9 @@ local textureLookup = {
 	-- tank      = [[Interface\LFGFrame\LFGRole_BW]],
 	-- dps	      = [[Interface\LFGFrame\LFGRole_BW]],
 	-- healer    = [[Interface\LFGFrame\LFGRole_BW]]
+	feast_fish = [[Interface\Icons\inv_misc_fish_52]],
+	feast_misc = [[Interface\Icons\inv_thanksgiving_turkey]],
+	food_mage  = [[Interface\Icons\ability_mage_conjurefoodrank9]],
 }
 local textureKeys, textureVals = {}, {}
 mod.textureKeys, mod.textureVals = textureKeys, textureVals
@@ -599,7 +619,7 @@ local defaults = {
 		maxSize = UIParent:GetHeight() * 0.48,
 		maxSizeSet = false,
 		interestRadius = 100,
-		minRadius = 15,
+		minRadius = 30,
 		zoomLevel = 100,
 		enabled = true,
 		useAdaptiveZoom = true,
@@ -1115,9 +1135,24 @@ function mod:RegisterModuleOptions(name, optionTbl, displayName, noDisable)
 	end
 	
 	if not optionFrames.default then
+		print("-- RegisterModuleOptions: default =",name,"/",displayName,"/", noDisable) -- DEBUG
 		optionFrames.default = ACD3:AddToBlizOptions("HudMap", nil, nil, name)
 	else
+		print("-- RegisterModuleOptions:",name,"/",displayName,"/", noDisable) -- DEBUG
 		optionFrames[name] = ACD3:AddToBlizOptions("HudMap", displayName, "HudMap", name)
+		-- self:AddButtonTooltipSHTML(name)
+		mod.DEBUG_TABLE["optionFrames"] = optionFrames
+	end
+end
+
+function mod:AddButtonTooltipSHTML(mdlName) -- NEW FUNC / DEBUG
+	-- print("AddButtonTooltipSHTML:",mdlName)
+	-- local optFrame = optionFrames[mdlName]
+	local optFrame = optionFrames
+	
+	if mdlName == "Encounters" then
+		mod.DEBUG_TABLE["optFrame"] = optFrame
+		
 	end
 end
 
@@ -1134,7 +1169,7 @@ function mod:UpdateCanvasPosition()
 	self.canvas:SetSize(db.maxSize * 2, db.maxSize * 2)
 end
 
-function mod:COMBAT_LOG_EVENT_UNFILTERED(ev, timestamp, event, hideCaster, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags, spellID, ...)
+function mod:COMBAT_LOG_EVENT_UNFILTERED(ev, timestamp, event, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags, spellID, ...)
 	if event == "UNIT_DIED" then
 		for k, v in pairs(followedUnits) do
 			if sourceName and k and UnitIsUnit(sourceName, k) and not v.persist then
@@ -1406,7 +1441,7 @@ Edge = setmetatable({
 		tinsert(edgeCache, self)
 		return nil
 	end,
-	New = function(self, r, g, b, a, srcPlayer, dstPlayer, sx, sy, dx, dy, lifetime)
+	New = function(self, r, g, b, a, srcPlayer, dstPlayer, sx, sy, dx, dy, lifetime, rangeMod)
 		local t = tremove(edgeCache)
 		if not t then
 			t = setmetatable({}, edge_mt)
@@ -1423,7 +1458,6 @@ Edge = setmetatable({
 			
 			t.fadeOutGroup = t.frame:CreateAnimationGroup()
 			t.fadeOut = t.fadeOutGroup:CreateAnimation("alpha")
-      -- t.fadeOut:SetMaxFramerate(60)
 			t.fadeOut:SetChange(-1)
 			t.fadeOut:SetDuration(0.25)
 			t.fadeOut:SetScript("OnFinished", animations.hideParent)
@@ -1431,11 +1465,32 @@ Edge = setmetatable({
 		t:OnAcquire()
 		t.srcPoint = nil
 		t.dstPoint = nil
+		t.test = false
 		
 		t.lifetime = type(lifetime) == "number" and GetTime() + lifetime or nil
 		t:SetColor(r, g, b, a)
 		t.srcPlayer, t.dstPlayer = srcPlayer, dstPlayer
 		t.sx, t.sy, t.dx, t.dy = sx, sy, dx, dy
+		
+		-- print("--called Edge.New")
+		if rangeMod then
+			-- print("--called Edge.New with rangeMod")
+			if rangeMod.dist and (rangeMod.dist) > 10 and rangeMod.r and rangeMod.g and rangeMod.b and rangeMod.a then
+				t:SetColor(rangeMod.r, rangeMod.g, rangeMod.b, rangeMod.a) -- test the colors
+				t:SetColor(r, g, b, a)
+				t.rangeMod = {
+					["dist"] = rangeMod.dist,
+					["c_near"] = {r, g, b, a },
+					["c_far"] = {rangeMod.r, rangeMod.g, rangeMod.b, rangeMod.a },
+				}
+				-- print("colors")
+				-- print(r, g, b, a)
+				-- print(rangeMod.r, rangeMod.g, rangeMod.b, rangeMod.a)
+			else
+				t.rangeMod = nil
+			end
+		end
+		
 		activeEdgeList[t] = true
 		return t
 	end,
@@ -1503,6 +1558,11 @@ Edge = setmetatable({
 			dx, dy = self.dx, self.dy
 		end
 		
+		local tarDist = 0
+		if self.srcPlayer and self.dstPlayer then
+			tarDist = mod:UnitDistance(self.srcPlayer, self.dstPlayer)
+		end
+		
 		local visible
 		if sx and sy and dx and dy then
 			local px, py = mod:GetUnitPosition("player")
@@ -1525,6 +1585,31 @@ Edge = setmetatable({
 			local ay = dy - sy
 			local hyp = math_pow((ax*ax) + (ay*ay), 0.5)
 			if hyp > 15 then
+				if self.rangeMod then
+					
+					local r, g, b, a  = unpack(self.rangeMod.c_near)
+					local r2,g2,b2,a2 = unpack(self.rangeMod.c_far)
+					if tarDist > self.rangeMod.dist then
+						r,g,b,a = r2,g2,b2,a2
+					elseif tarDist > 0.9 * self.rangeMod.dist then
+						r = (r+r2)/2
+						g = (g+g2)/2
+						b = (b+b2)/2
+						a = (a+a2)/2
+					end
+					-- print("--tarDist",math.floor(tarDist),"-",r,g,b,a)
+					self:SetColor(r, g, b, a)
+				end
+				
+				-- if not self.test and (hyp > self.rangeMod.dist) then
+					-- self.test = true
+					-- print("> dist")
+				-- elseif self.test and not (hyp > self.rangeMod.dist) then
+					-- self.test = false
+					-- print("< dist")
+				-- end
+				-- print("-- "..tostring(hyp))
+				
 				self.texture:Show()
 				DrawRouteLineCustom(self.texture, mod.canvas, sx, sy, dx, dy, 100);
 			else
@@ -1534,8 +1619,8 @@ Edge = setmetatable({
 	end,
 }, object_mt)
 
-function mod:AddEdge(r, g, b, a, lifetime, srcPlayer, dstPlayer, sx, sy, dx, dy)
-	return Edge:New(r, g, b, a, srcPlayer, dstPlayer, sx, sy, dx, dy, lifetime)
+function mod:AddEdge(r, g, b, a, lifetime, srcPlayer, dstPlayer, sx, sy, dx, dy, rangeMod)
+	return Edge:New(r, g, b, a, srcPlayer, dstPlayer, sx, sy, dx, dy, lifetime, rangeMod)
 end
 
 do
@@ -1966,15 +2051,12 @@ do
 				t.pulseAnimations:SetScript("OnFinished", animations.replay)				
 				
 				t.pulse = t.pulseAnimations:CreateAnimation("scale")
-        -- t.pulse:SetMaxFramerate(60)
 				t.pulse:SetOrder(1)
 				t.pulseIn = t.pulseAnimations:CreateAnimation("scale")
-        -- t.pulseIn:SetMaxFramerate(60)
 				t.pulseIn:SetOrder(2)
 				t.pulse:SetScript("OnPlay", animations.onLoad)
 				
 				t.rotate = t.repeatAnimations:CreateAnimation("rotation")
-        -- t.rotate:SetMaxFramerate(60)
 				
 				t.normal, t.alert = {}, {}				
 				
@@ -1982,13 +2064,11 @@ do
 					t.fadeInGroup = t.frame:CreateAnimationGroup()
 					
 					local scaleOut = t.fadeInGroup:CreateAnimation("scale")
-          -- scaleOut:SetMaxFramerate(60)
 					scaleOut:SetDuration(0)
 					scaleOut:SetScale(1.5, 1.5)
 					scaleOut:SetOrder(1)
 					
 					t.fadeIn = t.fadeInGroup:CreateAnimation()
-          -- t.fadeIn:SetMaxFramerate(60)
 					t.fadeIn:SetDuration(0.35)
 					t.fadeIn:SetScript("OnPlay", function(self)
 						animations.onLoad(self)
@@ -2000,7 +2080,6 @@ do
 					t.fadeIn:SetOrder(2)
 
 					local scaleIn = t.fadeInGroup:CreateAnimation("scale")
-          -- scaleIn:SetMaxFramerate(60)
 					scaleIn:SetDuration(0.35)
 					scaleIn:SetScale(1 / 1.5, 1 / 1.5)
 					scaleIn:SetOrder(2)
@@ -2008,7 +2087,6 @@ do
 				
 				t.fadeOutGroup = t.frame:CreateAnimationGroup()
 				t.fadeOut = t.fadeOutGroup:CreateAnimation("alpha")
-        -- t.fadeOut:SetMaxFramerate(60)
 				t.fadeOut:SetChange(-1)
 				t.fadeOut:SetDuration(0.25)
 				t.fadeOut:SetScript("OnFinished", animations.hideParent)
@@ -2035,7 +2113,8 @@ do
 			t:SetSize(size or 20)
 			
 			t:SetColor(r, g, b, a)
-			t:SetAlertColor(1, 0, 0, a)
+			-- t:SetAlertColor(1, 0, 0, a)
+			t:SetAlertColor(r, g, b, a)
 			t:Alert(false)
 			
 			t.shouldUpdateRange = false
@@ -2062,6 +2141,12 @@ end
 
 function mod:PlaceRangeMarker(texture, x, y, radius, duration, r, g, b, a, blend)
 	return Point:New(self.currentZone, x, y, nil, duration, texture, radius, blend, r, g, b, a)	
+end
+
+function mod:PlaceRangeMarkerCoords(texture, x, y, radius, duration, r, g, b, a, blend)
+	local x2,y2 = self:CoordsToPosition(x, y)
+	-- print("Placing", texture, "at", x, "(",x2,"), ", y, "(",y2,") r", radius)
+	return Point:New(self.currentZone, x2, y2, nil, duration, texture, radius, blend, r, g, b, a)	
 end
 
 function mod:PlaceStaticMarkerOnPartyMember(texture, person, radius, duration, r, g, b, a, blend)
@@ -2100,10 +2185,10 @@ end
 
 function mod:CoordsToPosition(x, y)
 	if not x or not y or (x == 0 and y == 0) then return x, y end
-	if not zoneScale then
+	if not self.zoneScale then
 		return x * 1500, (1 - y) * 1000
 	end
-	return x * zoneScale[1], (1 - y) * zoneScale[2]
+	return x * self.zoneScale[1], (1 - y) * self.zoneScale[2]
 end
 
 function mod:UpdateZoneData()
@@ -2112,21 +2197,26 @@ function mod:UpdateZoneData()
 		return
 	end
 	paused = false
-  
-  local m, l, x, y = Astrolabe:GetUnitPosition("player", true)
-	if (x == 0 and y == 0) then
+	
+	SetMapToCurrentZone()
+	
+	local cx, cy = GetPlayerMapPosition("player")
+	if cx == 0 and cy == 0 then
 		paused = true
 		return
 	end
-  
-  -- Do we need to clear zoneScale if we don't have a map?
-  if not m then return end
 	
-  local _, _, w, h = Astrolabe:GetMapInfo(m, l or 0)
-  zoneScale[1] = w
-  zoneScale[2] = h
-  
-	self.currentZone = l > 0 and (m .. l) or l
+	local area, level, key
+	area = GetMapInfo()
+	level = GetCurrentMapDungeonLevel()
+	
+	-- Thanks Cyprias!
+	if area == "Ulduar" or area == "CoTStratholme" then
+		level = level - 1
+	end
+	key = level > 0 and (area .. level) or area
+	self.currentZone = zoneOverrides[GetSubZoneText()] or key	
+	self.zoneScale = zoneScalingData[self.currentZone]
 end
 
 do
@@ -2263,3 +2353,173 @@ minimapSize = {
 	},
 }
 mod.minimapSize = minimapSize
+
+zoneOverrides = {
+	[L["The Frozen Throne"]] = "IcecrownCitadel7"
+}
+
+zoneScalingData = setmetatable({
+	Arathi = { 3599.99987792969, 2399.99992370605, 1},
+	Ogrimmar = { 1402.6044921875, 935.416625976563, 2},
+	Undercity = { 959.375030517578, 640.104125976563, 4},
+	Barrens = { 10133.3330078125, 6756.24987792969, 5},
+	Darnassis = { 1058.33325195313, 705.7294921875, 6},
+	AzuremystIsle = { 4070.8330078125, 2714.5830078125, 7},
+	UngoroCrater = { 3699.99981689453, 2466.66650390625, 8},
+	BurningSteppes = { 2929.16659545898, 1952.08349609375, 9},
+	Wetlands = { 4135.41668701172, 2756.25, 10},
+	Winterspring = { 7099.99984741211, 4733.33325195313, 11},
+	Dustwallow = { 5250.00006103516, 3499.99975585938, 12},
+	Darkshore = { 6549.99975585938, 4366.66650390625, 13},
+	LochModan = { 2758.33312988281, 1839.5830078125, 14},
+	BladesEdgeMountains = { 5424.99975585938, 3616.66638183594, 15},
+	Durotar = { 5287.49963378906, 3524.99987792969, 16},
+	Silithus = { 3483.333984375, 2322.916015625, 17},
+	ShattrathCity = { 1306.25, 870.833374023438, 18},
+	Ashenvale = { 5766.66638183594, 3843.74987792969, 19},
+	Azeroth = { 40741.181640625, 27149.6875, 20},
+	Nagrand = { 5525.0, 3683.33316802979, 21},
+	TerokkarForest = { 5399.99975585938, 3600.00006103516, 22},
+	EversongWoods = { 4925.0, 3283.3330078125, 23},
+	SilvermoonCity = { 1211.45849609375, 806.7705078125, 24},
+	Tanaris = { 6899.99952697754, 4600.0, 25},
+	Stormwind = { 1737.499958992, 1158.3330078125, 26},
+	SwampOfSorrows = { 2293.75, 1529.1669921875, 27},
+	EasternPlaguelands = { 4031.25, 2687.49987792969, 28},
+	BlastedLands = { 3349.99987792969, 2233.333984375, 29},
+	Elwynn = { 3470.83325195313, 2314.5830078125, 30},
+	DeadwindPass = { 2499.99993896484, 1666.6669921875, 31},
+	DunMorogh = { 4924.99975585938, 3283.33325195313, 32},
+	TheExodar = { 1056.7705078125, 704.687744140625, 33},
+	Felwood = { 5749.99963378906, 3833.33325195313, 34},
+	Silverpine = { 4199.99975585938, 2799.99987792969, 35},
+	ThunderBluff = { 1043.74993896484, 695.833312988281, 36},
+	Hinterlands = { 3850.0, 2566.66662597656, 37},
+	StonetalonMountains = { 4883.33312988281, 3256.24981689453, 38},
+	Mulgore = { 5137.49987792969, 3424.99984741211, 39},
+	Hellfire = { 5164.5830078125, 3443.74987792969, 40},
+	Ironforge = { 790.625061035156, 527.6044921875, 41},
+	ThousandNeedles = { 4399.99969482422, 2933.3330078125, 42},
+	Stranglethorn = { 6381.24975585938, 4254.166015625, 43},
+	Badlands = { 2487.5, 1658.33349609375, 44},
+	Teldrassil = { 5091.66650390625, 3393.75, 45},
+	Moonglade = { 2308.33325195313, 1539.5830078125, 46},
+	ShadowmoonValley = { 5500.0, 3666.66638183594, 47},
+	Tirisfal = { 4518.74987792969, 3012.49981689453, 48},
+	Aszhara = { 5070.83276367188, 3381.24987792969, 49},
+	Redridge = { 2170.83325195313, 1447.916015625, 50},
+	BloodmystIsle = { 3262.4990234375, 2174.99993896484, 51},
+	WesternPlaguelands = { 4299.99990844727, 2866.66653442383, 52},
+	Alterac = { 2799.99993896484, 1866.66665649414, 53},
+	Westfall = { 3499.99981689453, 2333.3330078125, 54},
+	Duskwood = { 2699.99993896484, 1800.0, 55},
+	Netherstorm = { 5574.99967193604, 3716.66674804688, 56},
+	Ghostlands = { 3300.0, 2199.99951171875, 57},
+	Zangarmarsh = { 5027.08349609375, 3352.08325195313, 58},
+	Desolace = { 4495.8330078125, 2997.91656494141, 59},
+	Kalimdor = { 36799.810546875, 24533.2001953125, 60},
+	SearingGorge = { 2231.24984741211, 1487.49951171875, 61},
+	Expansion01 = { 17464.078125, 11642.71875, 62},
+	Feralas = { 6949.99975585938, 4633.3330078125, 63},
+	Hilsbrad = { 3199.99987792969, 2133.33325195313, 64},
+	Sunwell = { 3327.0830078125, 2218.7490234375, 65},
+	Northrend = { 17751.3984375, 11834.2650146484, 66},
+	BoreanTundra = { 5764.5830078125, 3843.74987792969, 67},
+	Dragonblight = { 5608.33312988281, 3739.58337402344, 68},
+	GrizzlyHills = { 5249.99987792969, 3499.99987792969, 69},
+	HowlingFjord = { 6045.83288574219, 4031.24981689453, 70},
+	IcecrownGlacier = { 6270.83331298828, 4181.25, 71},
+	SholazarBasin = { 4356.25, 2904.16650390625, 72},
+	TheStormPeaks = { 7112.49963378906, 4741.666015625, 73},
+	ZulDrak = { 4993.75, 3329.16650390625, 74},
+	ScarletEnclave = { 3162.5, 2108.33337402344, 76},
+	CrystalsongForest = { 2722.91662597656, 1814.5830078125, 77},
+	LakeWintergrasp = { 2974.99987792969, 1983.33325195313, 78},
+	StrandoftheAncients = { 1743.74993896484, 1162.49993896484, 79},
+	Dalaran = { 0.0, 0.0, 80},
+	Naxxramas = { 1856.24975585938, 1237.5, 81},
+	Naxxramas1 = { 1093.830078125, 729.219970703125, 82},
+	Naxxramas2 = { 1093.830078125, 729.219970703125, 83},
+	Naxxramas3 = { 1200.0, 800.0, 84},
+	Naxxramas4 = { 1200.330078125, 800.219970703125, 85},
+	Naxxramas5 = { 2069.80981445313, 1379.8798828125, 86},
+	Naxxramas6 = { 655.93994140625, 437.2900390625, 87},
+	TheForgeofSouls = { 11399.9995117188, 7599.99975585938, 88},
+	TheForgeofSouls1 = { 1448.09985351563, 965.400390625, 89},
+	AlteracValley = { 4237.49987792969, 2824.99987792969, 90},
+	WarsongGulch = { 1145.83331298828, 764.583312988281, 91},
+	IsleofConquest = { 2650.0, 1766.66658401489, 92},
+	TheArgentColiseum = { 2599.99996948242, 1733.33334350586, 93},
+	TheArgentColiseum1 = { 369.986186981201, 246.657989501953, 94},
+	TheArgentColiseum1 = { 369.986186981201, 246.657989501953, 95},
+	TheArgentColiseum2 = { 739.996017456055, 493.330017089844, 96},
+	HrothgarsLanding = { 3677.08312988281, 2452.083984375, 97},
+	AzjolNerub = { 1072.91664505005, 714.583297729492, 98},
+	AzjolNerub1 = { 752.973999023438, 501.983001708984, 99},
+	AzjolNerub2 = { 292.973999023438, 195.315979003906, 100},
+	AzjolNerub3 = { 367.5, 245.0, 101},
+	Ulduar77 = { 3399.99981689453, 2266.66666412354, 102},
+	Ulduar771 = { 920.196014404297, 613.466064453125, 103},
+	DrakTharonKeep = { 627.083312988281, 418.75, 104},
+	DrakTharonKeep1 = { 619.941009521484, 413.293991088867, 105},
+	DrakTharonKeep2 = { 619.941009521484, 413.293991088867, 106},
+	HallsofReflection = { 12999.9995117188, 8666.66650390625, 107},
+	HallsofReflection1 = { 879.02001953125, 586.01953125, 108},
+	TheObsidianSanctum = { 1162.49991798401, 775.0, 109},
+	HallsofLightning = { 3399.99993896484, 2266.66666412354, 110},
+	HallsofLightning1 = { 566.235015869141, 377.489990234375, 111},
+	HallsofLightning2 = { 708.237014770508, 472.160034179688, 112},
+	IcecrownCitadel = { 12199.9995117188, 8133.3330078125, 113},
+	IcecrownCitadel1 = { 1355.47009277344, 903.647033691406, 114},
+	IcecrownCitadel2 = { 1067.0, 711.333690643311, 115},
+	IcecrownCitadel3 = { 195.469970703125, 130.315002441406, 116},
+	IcecrownCitadel4 = { 773.710083007813, 515.810302734375, 117},
+	IcecrownCitadel5 = { 1148.73999023438, 765.820068359375, 118},
+	IcecrownCitadel6 = { 373.7099609375, 249.1298828125, 119},
+	IcecrownCitadel7 = { 293.260009765625, 195.507019042969, 120},
+	IcecrownCitadel8 = { 247.929931640625, 165.287994384766, 121},
+	VioletHold = { 383.333312988281, 256.25, 122},
+	VioletHold1 = { 256.22900390625, 170.820068359375, 123},
+	NetherstormArena = { 2270.83319091797, 1514.58337402344, 124},
+	CoTStratholme = { 1824.99993896484, 1216.66650390625, 125},
+	CoTStratholme1 = { 1125.29998779297, 750.199951171875, 126},
+	TheEyeofEternity = { 3399.99981689453, 2266.66666412354, 127},
+	TheEyeofEternity1 = { 430.070068359375, 286.713012695313, 128},
+	Nexus80 = { 2600.0, 1733.33322143555, 129},
+	Nexus801 = { 514.706970214844, 343.138977050781, 130},
+	Nexus802 = { 664.706970214844, 443.138977050781, 131},
+	Nexus803 = { 514.706970214844, 343.138977050781, 132},
+	Nexus804 = { 294.700988769531, 196.463989257813, 133},
+	VaultofArchavon = { 2599.99987792969, 1733.33325195313, 134},
+	VaultofArchavon1 = { 1398.25500488281, 932.170013427734, 135},
+	Ulduar = { 3287.49987792969, 2191.66662597656, 136},
+	Ulduar1 = { 669.450988769531, 446.300048828125, 137},
+	Ulduar2 = { 1328.46099853516, 885.639892578125, 138},
+	Ulduar3 = { 910.5, 607.0, 139},
+	Ulduar4 = { 1569.4599609375, 1046.30004882813, 140},
+	Ulduar5 = { 619.468994140625, 412.97998046875, 141},
+	Dalaran1 = { 830.015014648438, 553.33984375, 142},
+	Dalaran2 = { 563.223999023438, 375.48974609375, 143},
+	Gundrak = { 1143.74996948242, 762.499877929688, 144},
+	Gundrak1 = { 905.033050537109, 603.35009765625, 145},
+	TheNexus = { 0.0, 0.0, 146},
+	TheNexus1 = { 1101.2809753418, 734.1875, 147},
+	PitofSaron = { 1533.33331298828, 1022.91667175293, 148},
+	Ahnkahet = { 972.91667175293, 647.916610717773, 149},
+	Ahnkahet1 = { 972.41796875, 648.279022216797, 150},
+	ArathiBasin = { 1756.24992370605, 1170.83325195313, 151},
+	UtgardePinnacle = { 6549.99951171875, 4366.66650390625, 152},
+	UtgardePinnacle1 = { 548.936019897461, 365.957015991211, 153},
+	UtgardePinnacle2 = { 756.179943084717, 504.119003295898, 154},
+	UtgardeKeep = { 0.0, 0.0, 155},
+	UtgardeKeep1 = { 734.580993652344, 489.721500396729, 156},
+	UtgardeKeep2 = { 481.081008911133, 320.720293045044, 157},
+	UtgardeKeep3 = { 736.581008911133, 491.054512023926, 158},
+	TheRubySanctum = { 752.083312988281, 502.083251953125, 159},
+}, {__index = function(t, k)
+	if k then
+		error("HudMap has no zone data for " .. k .. ". Please report this as a bug.")
+		rawset(t, k, false)
+	end
+	return rawget(t, k)
+end })
