@@ -1,3 +1,7 @@
+*.temp
+_Releases/*
+Git wow-HudMap-dev.lnk
+
 # Compiled Lua sources
 luac.out
 
